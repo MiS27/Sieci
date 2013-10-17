@@ -7,6 +7,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <signal.h>
+#include <sys/wait.h>
+#include <pthread.h>
  
 struct sockaddr_in addr_in;
 int addr_in_size;
@@ -15,8 +17,37 @@ char servMessage[] = "Witaj nieznajomy!";
 char servMessage2[] = "Witaj Kamilu!";
 char servMessage3[] = "Witaj Michale!";
 
+void childend(int signo) {
+    pid_t pid;
+    pid=wait(NULL);
+    printf("\t[dzieciak mi umarl %d]\n",pid);
+}
+
+struct clientContext {
+    int socket;
+    struct sockaddr_in addr;
+    const char *name;
+};
+
+void* clientThread(void* arg) {
+    struct clientContext *ctx = (struct clientContext*) arg;
+    printf("%s: [connection from %s]\n", ctx->name, inet_ntoa((struct in_addr)ctx->addr.sin_addr));
+    read(ctx->socket, &buff, sizeof(buff)); 
+    if (!strcmp(buff, "106632")) {
+	write(ctx->socket, servMessage2, sizeof(servMessage2));
+    } else if (!strcmp(buff, "106643")) {
+	write(ctx->socket, servMessage3, sizeof(servMessage3));
+    } else {
+	write(ctx->socket, servMessage, sizeof(servMessage));
+    }
+    close(ctx->socket);
+    free(ctx);
+    pthread_exit(0);
+    
+}
+
 int main(int argc, char *argv[]) {
-    signal(SIGCHLD, SIG_IGN);
+    signal(SIGCHLD, childend);
     if (argc < 2) {
 	printf("Usage: server server_port");
 	return 0;
@@ -51,10 +82,23 @@ int main(int argc, char *argv[]) {
         perror("listen");
         exit(-1);
     }
-    
+    //
+    //
+    int i=0;
     while (1) {
-	int csd = accept(sd, (struct sockaddr*)&addr_in, &addr_in_size); // zwraca client descriptor
-	read(csd, &buff, sizeof(buff)); 
+	i++;
+	struct clientContext *ctx = malloc(sizeof(struct clientContext));
+	socklen_t nTmp = sizeof(ctx->addr);
+	ctx->name = argv[0];
+	ctx->socket = accept(sd, (struct sockaddr*)&addr_in, &addr_in_size); // zwraca client descriptor
+	if (ctx->socket < 0) {
+	    printf(stderr, "Nie umiem tworzyc polaczen\n");
+	    exit(1);
+	}
+	pthread_t id;
+	pthread_create(&id, NULL, clientThread, ctx);
+	    printf("%d\n",i);
+	/*read(csd, &buff, sizeof(buff)); 
 	if (!fork()) {
 	    if (!strcmp(buff, "106632")) {
 		write(csd, servMessage2, sizeof(servMessage2));
@@ -68,6 +112,7 @@ int main(int argc, char *argv[]) {
 	    exit(0);
  	}
  	close(csd);
+ 	*/
    }
 // ostatni argument to adres na zmienna z sizeof na strukture)
 //     read(sd, &buff, sizeof(buff)); 
