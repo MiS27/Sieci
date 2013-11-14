@@ -12,7 +12,6 @@
  
 struct sockaddr_in addr_in;
 int addr_in_size;
-char buff[150];
 char servMessage[] = "Witaj nieznajomy!";
 char servMessage2[] = "Witaj Kamilu!";
 char servMessage3[] = "Witaj Michale!";
@@ -30,16 +29,43 @@ struct clientContext {
 };
 
 void* clientThread(void* arg) {
+    char buff[150];
     struct clientContext *ctx = (struct clientContext*) arg;
     printf("%s: [connection from %s]\n", ctx->name, inet_ntoa((struct in_addr)ctx->addr.sin_addr));
-    read(ctx->socket, &buff, sizeof(buff)); 
-    if (!strcmp(buff, "106632")) {
-	write(ctx->socket, servMessage2, sizeof(servMessage2));
-    } else if (!strcmp(buff, "106643")) {
-	write(ctx->socket, servMessage3, sizeof(servMessage3));
+    int place=0;
+    while (1) {
+	place+=read(ctx->socket, &buff[place], sizeof(buff)-place); 
+	if(strchr(buff,'\n')!=NULL)
+		break;
+	}
+        printf("%s\n",buff);
+    if (!strcmp(buff, "106632\n")) {
+	place=0;
+	int tmp=0;
+	while (1) {
+		tmp=write(ctx->socket, &servMessage2[place], sizeof(servMessage2)-place);
+		place+=tmp;
+		if(tmp==0)
+			break;
+	}
+    } else if (!strcmp(buff, "106643\n")) {
+        write(ctx->socket, servMessage3, sizeof(servMessage3));
     } else {
-	write(ctx->socket, servMessage, sizeof(servMessage));
+	place=0;
+	int tmp=0;
+	while (1) {
+		tmp=write(ctx->socket, &servMessage[place], sizeof(servMessage)-place);
+		place+=tmp;
+		if(tmp==0)
+			break;
+	}
     }
+	place=0;
+    while (1) {
+	place+=read(ctx->socket, &buff[place], sizeof(buff)-place); 
+	if(strchr(buff,'\n')!=NULL)
+		break;
+	}
     close(ctx->socket);
     free(ctx);
     pthread_exit(0);
@@ -49,8 +75,8 @@ void* clientThread(void* arg) {
 int main(int argc, char *argv[]) {
     signal(SIGCHLD, childend);
     if (argc < 2) {
-	printf("Usage: server server_port");
-	return 0;
+        printf("Usage: server server_port");
+        return 0;
     }    
     addr_in_size = sizeof(addr_in);
     
@@ -86,33 +112,33 @@ int main(int argc, char *argv[]) {
     //
     int i=0;
     while (1) {
-	i++;
-	struct clientContext *ctx = malloc(sizeof(struct clientContext));
-	socklen_t nTmp = sizeof(ctx->addr);
-	ctx->name = argv[0];
-	ctx->socket = accept(sd, (struct sockaddr*)&addr_in, &addr_in_size); // zwraca client descriptor
-	if (ctx->socket < 0) {
-	    printf(stderr, "Nie umiem tworzyc polaczen\n");
-	    exit(1);
-	}
-	pthread_t id;
-	pthread_create(&id, NULL, clientThread, ctx);
-	    printf("%d\n",i);
-	/*read(csd, &buff, sizeof(buff)); 
-	if (!fork()) {
-	    if (!strcmp(buff, "106632")) {
-		write(csd, servMessage2, sizeof(servMessage2));
-	    } else if (!strcmp(buff, "106643")) {
-		write(csd, servMessage3, sizeof(servMessage3));
-	    } else {
-		write(csd, servMessage, sizeof(servMessage));
-	    }
-	    close(csd);
-	    close(sd);
-	    exit(0);
- 	}
- 	close(csd);
- 	*/
+        i++;
+        struct clientContext *ctx = malloc(sizeof(struct clientContext));
+        socklen_t nTmp = sizeof(ctx->addr);
+        ctx->name = argv[0];
+        ctx->socket = accept(sd, (struct sockaddr*)&addr_in, &addr_in_size); // zwraca client descriptor
+        if (ctx->socket < 0) {
+            printf(stderr, "Nie umiem tworzyc polaczen\n");
+            exit(1);
+        }
+        pthread_t id;
+        pthread_create(&id, NULL, clientThread, ctx);
+            printf("%d\n",i);
+        /*read(csd, &buff, sizeof(buff)); 
+        if (!fork()) {
+            if (!strcmp(buff, "106632")) {
+                write(csd, servMessage2, sizeof(servMessage2));
+            } else if (!strcmp(buff, "106643")) {
+                write(csd, servMessage3, sizeof(servMessage3));
+            } else {
+                write(csd, servMessage, sizeof(servMessage));
+            }
+            close(csd);
+            close(sd);
+            exit(0);
+         }
+         close(csd);
+         */
    }
 // ostatni argument to adres na zmienna z sizeof na strukture)
 //     read(sd, &buff, sizeof(buff)); 
